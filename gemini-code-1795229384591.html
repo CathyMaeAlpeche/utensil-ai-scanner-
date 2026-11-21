@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Utensil AI Scanner</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- TensorFlow.js and Teachable Machine Image Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+  <style>
+    :root {
+      --bg-gradient-start: #fff5f8;
+      --bg-gradient-end: #ffeef4;
+      --card-bg: #ffffff;
+      --primary-pink: #f472b6;
+      --primary-pink-hover: #ec4899;
+      --primary-pink-light: #fdf2f8;
+      --primary-pink-border: #fbcfe8;
+      --accent-rose: #db2777;
+      --text-dark: #1f2937;
+      --text-muted: #6b7280;
+      --shadow-soft: 0 10px 30px -5px rgba(244, 114, 182, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      --transition: all 0.25s ease-out;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+      color: var(--text-dark);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.25rem 1rem 2rem;
+      line-height: 1.5;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 0.5rem 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background-color: var(--card-bg);
+      color: var(--accent-rose);
+      border: 1px solid var(--primary-pink-border);
+      padding: 0.3rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      box-shadow: 0 2px 8px rgba(244, 114, 182, 0.1);
+      margin-bottom: 0.6rem;
+    }
+
+    h1 {
+      font-size: clamp(1.75rem, 5vw, 2.25rem);
+      font-weight: 800;
+      color: var(--text-dark);
+      letter-spacing: -0.02em;
+      margin-bottom: 0.3rem;
+    }
+
+    h1 span {
+      background: linear-gradient(135deg, #ec4899, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 380px;
+      margin: 0 auto;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid rgba(251, 207, 232, 0.6);
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .status-pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .status-pill.active {
+      background: #fce7f3;
+      color: var(--accent-rose);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #9ca3af;
+    }
+
+    .status-pill.active .status-dot {
+      background: #ec4899;
+      box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.25);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    /* Camera Section */
+    .webcam-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: var(--primary-pink-light);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 2px dashed var(--primary-pink-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.1rem;
+    }
+
+    .webcam-wrapper.has-stream {
+      border-style: solid;
+      border-color: var(--primary-pink);
+    }
+
+    #webcam-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #webcam-container canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+      display: block;
+    }
+
+    .camera-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1.2rem;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .camera-icon-circle {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: #ffffff;
+      color: var(--primary-pink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 6px 16px rgba(244, 114, 182, 0.18);
+    }
+
+    .camera-placeholder p {
+      font-weight: 600;
+      color: var(--text-dark);
+      font-size: 0.95rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .camera-placeholder span {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: var(--transition);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(236, 72, 153, 0.28);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    .btn-secondary {
+      background: #fdf2f8;
+      color: var(--accent-rose);
+      border: 1.5px solid var(--primary-pink-border);
+    }
+
+    .btn-secondary:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none !important;
+    }
+
+    .error-banner {
+      display: none;
+      margin-top: 0.85rem;
+      padding: 0.75rem 0.9rem;
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      color: #be123c;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .error-banner.visible {
+      display: block;
+    }
+
+    /* Detection Result */
+    .detection-card {
+      background: linear-gradient(145deg, #ffffff 0%, #fff7fa 100%);
+      border: 1.5px solid var(--primary-pink-border);
+      text-align: center;
+      padding: 1.25rem;
+    }
+
+    .detection-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--primary-pink-hover);
+      margin-bottom: 0.35rem;
+    }
+
+    .detected-utensil {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--text-dark);
+      margin-bottom: 0.25rem;
+    }
+
+    .detected-utensil.uncertain {
+      font-size: 1.1rem;
+      color: #b45309;
+    }
+
+    .detected-utensil.idle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .confidence-badge {
+      display: inline-block;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      background: var(--primary-pink-light);
+      color: var(--accent-rose);
+      font-weight: 700;
+      font-size: 0.85rem;
+      border: 1px solid var(--primary-pink-border);
+    }
+
+    .confidence-badge.hidden {
+      display: none;
+    }
+
+    /* Confidence Analysis */
+    .bars-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .bar-item {
+      padding: 0.65rem 0.75rem;
+      border-radius: var(--radius-sm);
+      background: #fafafa;
+      border: 1.5px solid transparent;
+      transition: var(--transition);
+    }
+
+    .bar-item.highest {
+      background: var(--primary-pink-light);
+      border-color: var(--primary-pink);
+    }
+
+    .bar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.35rem;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .bar-name {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-dark);
+    }
+
+    .bar-item.highest .bar-name {
+      color: var(--accent-rose);
+    }
+
+    .top-tag {
+      font-size: 0.65rem;
+      background: var(--primary-pink);
+      color: #fff;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      display: none;
+    }
+
+    .bar-item.highest .top-tag {
+      display: inline-block;
+    }
+
+    .bar-percent {
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .bar-item.highest .bar-percent {
+      color: var(--accent-rose);
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: #eceff3;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #f9a8d4, #f472b6);
+      transition: width 0.18s ease-out;
+    }
+
+    .bar-item.highest .progress-fill {
+      background: linear-gradient(90deg, #f472b6, #db2777);
+    }
+
+    /* Utensil Information */
+    .info-box {
+      background: var(--primary-pink-light);
+      border: 1.5px solid var(--primary-pink-border);
+      border-radius: var(--radius-md);
+      padding: 1.1rem;
+      display: flex;
+      gap: 0.85rem;
+      align-items: flex-start;
+    }
+
+    .info-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #ffffff;
+      color: var(--accent-rose);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 1.2rem;
+      box-shadow: 0 4px 10px rgba(244, 114, 182, 0.15);
+    }
+
+    .info-content h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 0.15rem;
+    }
+
+    .info-content p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 0.5rem 0;
+    }
+
+    footer span {
+      color: var(--accent-rose);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="badge">✨ AI Kitchen Assistant</div>
+      <h1>Utensil <span>AI Scanner</span></h1>
+      <p>Point your camera at a Spoon, Fork, Ladle, or Flipper to identify it instantly.</p>
+    </header>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Live Camera Feed</span>
+        <span id="camera-status" class="status-pill">
+          <span class="status-dot"></span>
+          <span id="status-text">Camera Off</span>
+        </span>
+      </div>
+
+      <div id="webcam-wrapper" class="webcam-wrapper">
+        <div id="webcam-container"></div>
+        <div id="camera-placeholder" class="camera-placeholder">
+          <div class="camera-icon-circle">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+          </div>
+          <p>Camera is inactive</p>
+          <span>Tap "Start Camera" below to scan</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="start-btn" class="btn btn-primary" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Start Camera
+        </button>
+        <button id="stop-btn" class="btn btn-secondary" type="button" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+          </svg>
+          Stop Camera
+        </button>
+      </div>
+
+      <div id="error-banner" class="error-banner" role="alert"></div>
+    </section>
+
+    <section class="card detection-card">
+      <div class="detection-label">Detected Utensil</div>
+      <div id="detected-name" class="detected-utensil idle">Camera is off</div>
+      <div id="detected-confidence" class="confidence-badge hidden">0% Confidence</div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Confidence Analysis</span>
+      </div>
+
+      <div class="bars-list">
+        <div class="bar-item" data-utensil="spoon">
+          <div class="bar-header">
+            <span class="bar-name">Spoon <span class="top-tag">Top Match</span></span>
+            <span class="bar-percent" id="pct-spoon">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="bar-spoon"></div>
+          </div>
+        </div>
+
+        <div class="bar-item" data-utensil="fork">
+          <div class="bar-header">
+            <span class="bar-name">Fork <span class="top-tag">Top Match</span></span>
+            <span class="bar-percent" id="pct-fork">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="bar-fork"></div>
+          </div>
+        </div>
+
+        <div class="bar-item" data-utensil="ladle">
+          <div class="bar-header">
+            <span class="bar-name">Ladle <span class="top-tag">Top Match</span></span>
+            <span class="bar-percent" id="pct-ladle">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="bar-ladle"></div>
+          </div>
+        </div>
+
+        <div class="bar-item" data-utensil="flipper">
+          <div class="bar-header">
+            <span class="bar-name">Flipper <span class="top-tag">Top Match</span></span>
+            <span class="bar-percent" id="pct-flipper">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="bar-flipper"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Utensil Information</span>
+      </div>
+      <div class="info-box">
+        <div class="info-icon" id="info-icon">🍽️</div>
+        <div class="info-content">
+          <h3 id="info-title">Ready to Scan</h3>
+          <p id="info-description">Start the camera and hold a Spoon, Fork, Ladle, or Flipper in front of the lens to learn about its culinary uses.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Powered by <span>Teachable Machine AI</span>
+    </footer>
+  </div>
+
+  <script>
+    const MODEL_URL = "https://teachablemachine.withgoogle.com/models/urRoy96Csd/";
+
+    let model = null;
+    let webcam = null;
+    let animationFrameId = null;
+    let isRunning = false;
+
+    const startBtn = document.getElementById("start-btn");
+    const stopBtn = document.getElementById("stop-btn");
+    const webcamContainer = document.getElementById("webcam-container");
+    const webcamWrapper = document.getElementById("webcam-wrapper");
+    const cameraPlaceholder = document.getElementById("camera-placeholder");
+    const cameraStatus = document.getElementById("camera-status");
+    const statusText = document.getElementById("status-text");
+    const errorBanner = document.getElementById("error-banner");
+
+    const detectedNameEl = document.getElementById("detected-name");
+    const detectedConfidenceEl = document.getElementById("detected-confidence");
+
+    const infoIconEl = document.getElementById("info-icon");
+    const infoTitleEl = document.getElementById("info-title");
+    const infoDescriptionEl = document.getElementById("info-description");
+
+    const UTENSIL_INFO = {
+      spoon: {
+        displayName: "Spoon",
+        icon: "🥄",
+        description: "Used for scooping, stirring, and eating food."
+      },
+      fork: {
+        displayName: "Fork",
+        icon: "🍴",
+        description: "Used for holding, piercing, and picking up food."
+      },
+      ladle: {
+        displayName: "Ladle",
+        icon: "🥣",
+        description: "Used for serving soups, sauces, and other liquids."
+      },
+      flipper: {
+        displayName: "Flipper (Spatula)",
+        icon: "🍳",
+        description: "Used for flipping, turning, and lifting food while cooking."
+      }
+    };
+
+    function normalizeClassKey(rawName) {
+      const lower = rawName.toLowerCase().trim();
+      if (lower.includes("spoon")) return "spoon";
+      if (lower.includes("fork")) return "fork";
+      if (lower.includes("ladle")) return "ladle";
+      if (lower.includes("flipper") || lower.includes("spatula")) return "flipper";
+      return null;
+    }
+
+    function showError(msg) {
+      errorBanner.textContent = msg;
+      errorBanner.classList.add("visible");
+    }
+
+    function clearError() {
+      errorBanner.textContent = "";
+      errorBanner.classList.remove("visible");
+    }
+
+    async function loadModel() {
+      if (model) return model;
+      if (typeof tmImage === "undefined") {
+        throw new Error("Teachable Machine library failed to load.");
+      }
+      try {
+        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        return model;
+      } catch (err) {
+        console.error("Model load error:", err);
+        throw new Error("Unable to load AI model. Check internet connection.");
+      }
+    }
+
+    async function startCamera() {
+      if (isRunning) return;
+      clearError();
+
+      startBtn.disabled = true;
+      statusText.textContent = "Loading Model...";
+
+      try {
+        await loadModel();
+
+        statusText.textContent = "Starting Camera...";
+        webcam = new tmImage.Webcam(400, 400, false);
+        
+        try {
+          // Request rear camera preference via standard media devices
+          await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+            audio: false
+          });
+          await webcam.setup({ facingMode: "environment" });
+        } catch (camErr) {
+          console.warn("Environment camera fallback:", camErr);
+          await webcam.setup();
+        }
+
+        await webcam.play();
+        isRunning = true;
+
+        webcamContainer.innerHTML = "";
+        webcamContainer.appendChild(webcam.canvas);
+        cameraPlaceholder.style.display = "none";
+        webcamWrapper.classList.add("has-stream");
+
+        cameraStatus.classList.add("active");
+        statusText.textContent = "Scanning Active";
+        stopBtn.disabled = false;
+
+        animationFrameId = window.requestAnimationFrame(predictionLoop);
+      } catch (err) {
+        isRunning = false;
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        cameraStatus.classList.remove("active");
+        statusText.textContent = "Camera Off";
+        showError("Camera access denied or unavailable. Please grant camera permission.");
+      }
+    }
+
+    async function stopCamera() {
+      isRunning = false;
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      if (webcam) {
+        try {
+          await webcam.stop();
+        } catch (e) {}
+        webcam = null;
+      }
+
+      webcamContainer.innerHTML = "";
+      cameraPlaceholder.style.display = "flex";
+      webcamWrapper.classList.remove("has-stream");
+
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      cameraStatus.classList.remove("active");
+      statusText.textContent = "Camera Off";
+
+      resetUI();
+    }
+
+    function resetUI() {
+      detectedNameEl.textContent = "Camera is off";
+      detectedNameEl.className = "detected-utensil idle";
+      detectedConfidenceEl.classList.add("hidden");
+
+      ["spoon", "fork", "ladle", "flipper"].forEach(key => {
+        document.getElementById(`bar-${key}`).style.width = "0%";
+        document.getElementById(`pct-${key}`).textContent = "0%";
+        document.querySelector(`.bar-item[data-utensil="${key}"]`).classList.remove("highest");
+      });
+
+      infoIconEl.textContent = "🍽️";
+      infoTitleEl.textContent = "Ready to Scan";
+      infoDescriptionEl.textContent = "Start the camera and hold a Spoon, Fork, Ladle, or Flipper in front of the lens to learn about its culinary uses.";
+    }
+
+    async function predictionLoop() {
+      if (!isRunning || !webcam || !model) return;
+      webcam.update();
+      await predict();
+      if (isRunning) {
+        animationFrameId = window.requestAnimationFrame(predictionLoop);
+      }
+    }
+
+    async function predict() {
+      if (!model || !webcam || !webcam.canvas) return;
+      const predictions = await model.predict(webcam.canvas);
+
+      const scores = { spoon: 0, fork: 0, ladle: 0, flipper: 0 };
+      predictions.forEach(p => {
+        const k = normalizeClassKey(p.className);
+        if (k && scores.hasOwnProperty(k)) {
+          scores[k] = p.probability;
+        }
+      });
+
+      let topKey = "spoon";
+      let topProb = -1;
+      Object.entries(scores).forEach(([k, p]) => {
+        if (p > topProb) {
+          topProb = p;
+          topKey = k;
+        }
+      });
+
+      Object.entries(scores).forEach(([k, p]) => {
+        const pct = Math.round(p * 100);
+        document.getElementById(`bar-${k}`).style.width = `${pct}%`;
+        document.getElementById(`pct-${k}`).textContent = `${pct}%`;
+        const item = document.querySelector(`.bar-item[data-utensil="${k}"]`);
+        if (k === topKey && topProb >= 0.6) {
+          item.classList.add("highest");
+        } else {
+          item.classList.remove("highest");
+        }
+      });
+
+      const topPercent = Math.round(topProb * 100);
+
+      if (topProb < 0.6) {
+        detectedNameEl.textContent = "Uncertain — Please show more clearly.";
+        detectedNameEl.className = "detected-utensil uncertain";
+        detectedConfidenceEl.textContent = `Highest: ${topPercent}%`;
+        detectedConfidenceEl.classList.remove("hidden");
+
+        infoIconEl.textContent = "🔍";
+        infoTitleEl.textContent = "Low Confidence";
+        infoDescriptionEl.textContent = "Hold the utensil steady in good lighting centered in the camera frame.";
+      } else {
+        const info = UTENSIL_INFO[topKey];
+        detectedNameEl.textContent = info.displayName;
+        detectedNameEl.className = "detected-utensil";
+        detectedConfidenceEl.textContent = `${topPercent}% Confidence`;
+        detectedConfidenceEl.classList.remove("hidden");
+
+        infoIconEl.textContent = info.icon;
+        infoTitleEl.textContent = info.displayName;
+        infoDescriptionEl.textContent = info.description;
+      }
+    }
+
+    startBtn.addEventListener("click", startCamera);
+    stopBtn.addEventListener("click", stopCamera);
+
+    window.addEventListener("beforeunload", () => {
+      if (isRunning) stopCamera();
+    });
+  </script>
+</body>
+</html>
