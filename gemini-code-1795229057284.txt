@@ -1,0 +1,8 @@
+utensil-ai-scanner/
+├── .github/
+│   └── workflows/
+│       └── build-apk.yml
+├── www/
+│   └── index.html
+├── capacitor.config.json
+└── package.json
